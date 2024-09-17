@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/john/liosam_ws/src/LIO-SAM/build/devel/setup.sh
