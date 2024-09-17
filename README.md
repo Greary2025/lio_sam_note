@@ -1,1 +1,1 @@
-This is just a chinese note.
+This is just a lio-sam chinese note.
