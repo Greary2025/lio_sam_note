@@ -531,7 +531,7 @@ public:
     void projectPointCloud()
     {
         int cloudSize = laserCloudIn->points.size();
-        // kitti数据集准备
+        // 跑KITTI数据集
         bool halfPassed = false;
         cloudInfo.startOrientation = -atan2(laserCloudIn->points[0].y, laserCloudIn->points[0].x);
         cloudInfo.endOrientation   = -atan2(laserCloudIn->points[laserCloudIn->points.size() - 1].y,

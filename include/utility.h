@@ -152,6 +152,13 @@ public:
     float globalMapVisualizationPoseDensity;
     float globalMapVisualizationLeafSize;
 
+    // 跑KITTI数据集
+    // add by sx
+    bool has_ring;
+    float ang_bottom;
+    float ang_res_y;
+    // 跑KITTI数据集/end
+
     ParamServer()
     {
         nh.param<std::string>("/robot_id", robot_id, "roboat");
@@ -160,6 +167,13 @@ public:
         nh.param<std::string>("lio_sam/imuTopic", imuTopic, "imu_correct");
         nh.param<std::string>("lio_sam/odomTopic", odomTopic, "odometry/imu");
         nh.param<std::string>("lio_sam/gpsTopic", gpsTopic, "odometry/gps");
+
+        // 跑KITTI数据集
+        // add by sx
+        nh.param<bool>("lio_sam/has_ring", has_ring, true);
+        nh.param<float>("lio_sam/ang_bottom", ang_bottom, 15.0);
+        nh.param<float>("lio_sam/ang_res_y", ang_res_y, 1.0);
+        // 跑KITTI数据集/end
 
         nh.param<std::string>("lio_sam/lidarFrame", lidarFrame, "base_link");
         nh.param<std::string>("lio_sam/baselinkFrame", baselinkFrame, "base_link");

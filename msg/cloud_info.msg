@@ -33,3 +33,10 @@ sensor_msgs/PointCloud2 key_frame_cloud
 sensor_msgs/PointCloud2 key_frame_color
 sensor_msgs/PointCloud2 key_frame_poses
 sensor_msgs/PointCloud2 key_frame_map
+
+# // 跑KITTI数据集
+# 用于改写ring和time相关
+float32 startOrientation
+float32 endOrientation
+float32 orientationDiff
+# // 跑KITTI数据集/end
