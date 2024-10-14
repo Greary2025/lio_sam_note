@@ -207,6 +207,11 @@ public:
         if (sensor == SensorType::VELODYNE || sensor == SensorType::LIVOX)
         {
             pcl::moveFromROSMsg(currentCloudMsg, *laserCloudIn);
+            // 跑KITTI数据集
+            // Remove Nan points                                                                   （为跑kitti数据集改，本没有下面两行）
+            std::vector<int> indices;
+            pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
+            // 跑KITTI数据集/end
         }
         else if (sensor == SensorType::OUSTER)
         {
@@ -238,11 +243,16 @@ public:
         timeScanEnd = timeScanCur + laserCloudIn->points.back().time;
 
         // check dense flag
-        if (laserCloudIn->is_dense == false)
-        {
-            ROS_ERROR("Point cloud is not in dense format, please remove NaN points first!");
-            ros::shutdown();
-        }
+        // if (laserCloudIn->is_dense == false)
+        // {
+        //     ROS_ERROR("Point cloud is not in dense format, please remove NaN points first!");
+        //     ros::shutdown();
+        // }
+
+        // 跑KITTI数据集
+        if (!has_ring)
+            return true;
+        // 跑KITTI数据集/end
 
         // check ring channel
         static int ringFlag = 0;
@@ -521,6 +531,18 @@ public:
     void projectPointCloud()
     {
         int cloudSize = laserCloudIn->points.size();
+        // kitti数据集准备
+        bool halfPassed = false;
+        cloudInfo.startOrientation = -atan2(laserCloudIn->points[0].y, laserCloudIn->points[0].x);
+        cloudInfo.endOrientation   = -atan2(laserCloudIn->points[laserCloudIn->points.size() - 1].y,
+                                                     laserCloudIn->points[laserCloudIn->points.size() - 1].x) + 2 * M_PI;
+        if (cloudInfo.endOrientation - cloudInfo.startOrientation > 3 * M_PI) {
+            cloudInfo.endOrientation -= 2 * M_PI;
+        } else if (cloudInfo.endOrientation - cloudInfo.startOrientation < M_PI)
+            cloudInfo.endOrientation += 2 * M_PI;
+        cloudInfo.orientationDiff = cloudInfo.endOrientation - cloudInfo.startOrientation;
+        // 跑KITTI数据集/end
+
         // range image projection
         for (int i = 0; i < cloudSize; ++i)
         {
@@ -534,7 +556,21 @@ public:
             if (range < lidarMinRange || range > lidarMaxRange)
                 continue;
 
-            int rowIdn = laserCloudIn->points[i].ring;
+            // 跑KITTI数据集
+            // int rowIdn = laserCloudIn->points[i].ring;
+
+            // 跑KITTI数据集
+            int rowIdn = -1;
+            if (has_ring == true){
+                rowIdn = laserCloudIn->points[i].ring;
+            }
+            else{
+                float verticalAngle, horizonAngle;
+                verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y)) * 180 / M_PI;
+                rowIdn = (verticalAngle + ang_bottom) / ang_res_y;
+            }
+            // 跑KITTI数据集/end
+
             if (rowIdn < 0 || rowIdn >= N_SCAN)
                 continue;
 
@@ -562,7 +598,37 @@ public:
             if (rangeMat.at<float>(rowIdn, columnIdn) != FLT_MAX)
                 continue;
 
-            thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            // 跑KITTI数据集
+            // thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            // 跑KITTI数据集
+
+            if (has_ring == true)
+                thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            else {
+                    float ori = -atan2(thisPoint.y, thisPoint.x);
+                    if (!halfPassed) {
+                        if (ori < cloudInfo.startOrientation - M_PI / 2) {
+                            ori += 2 * M_PI;
+                        } else if (ori > cloudInfo.startOrientation + M_PI * 3 / 2) {
+                            ori -= 2 * M_PI;
+                        }
+                        if (ori - cloudInfo.startOrientation > M_PI) {
+                            halfPassed = true;
+                        }
+                    } else {
+                        ori += 2 * M_PI;
+                        if (ori < cloudInfo.endOrientation - M_PI * 3 / 2) {
+                            ori += 2 * M_PI;
+                        } else if (ori > cloudInfo.endOrientation + M_PI / 2) {
+                            ori -= 2 * M_PI;
+                        }
+                    }
+                    float relTime = (ori - cloudInfo.startOrientation) / cloudInfo.orientationDiff;
+                    // 激光雷达10Hz，周期0.1
+                    laserCloudIn->points[i].time = 0.1 * relTime;
+                    thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            }
+            // 跑KITTI数据集/end
 
             rangeMat.at<float>(rowIdn, columnIdn) = range;
 

@@ -139,6 +139,10 @@ public:
     int laserCloudSurfFromMapDSNum = 0;
     int laserCloudCornerLastDSNum = 0;
     int laserCloudSurfLastDSNum = 0;
+    // 跑KITTI数据集
+    //  double timeStart ;
+    int flag_tum=1;
+    // 跑KITTI数据集/end
 
     bool aLoopIsClosed = false;
     map<int, int> loopIndexContainer; // from new to old
@@ -339,8 +343,6 @@ public:
     }
 
     
-
-
 
 
 
@@ -1628,6 +1630,48 @@ public:
         pose_stamped.pose.orientation.w = q.w();
 
         globalPath.poses.push_back(pose_stamped);
+
+        // 跑KITTI数据集
+
+        // 位姿输出到txt文档
+        std::ofstream pose2("zz/pose2.txt", std::ios::app);
+        pose2.setf(std::ios::scientific, std::ios::floatfield);
+        // pose1.precision(15);
+
+        //save final trajectory in the left camera coordinate system.
+        Eigen::Matrix3d rotation_matrix;
+        rotation_matrix = Eigen::AngleAxisd(pose_in.yaw, Eigen::Vector3d::UnitZ()) * 
+                        Eigen::AngleAxisd(pose_in.pitch, Eigen::Vector3d::UnitY()) * 
+                        Eigen::AngleAxisd(pose_in.roll, Eigen::Vector3d::UnitX());
+        Eigen::Matrix<double, 4, 4> mylio_pose;
+        mylio_pose.topLeftCorner(3,3) = rotation_matrix;
+
+        mylio_pose(0,3) = pose_in.x;
+        mylio_pose(1,3) = pose_in.y;
+        mylio_pose(2,3) = pose_in.z;
+        Eigen::Matrix<double, 4, 4> cali_paremeter;
+        /*cali_paremeter << 4.276802385584e-04, -9.999672484946e-01, -8.084491683471e-03, -1.198459927713e-02,  //00-02
+                            -7.210626507497e-03, 8.081198471645e-03, -9.999413164504e-01, -5.403984729748e-02, 
+                            9.999738645903e-01, 4.859485810390e-04, -7.206933692422e-03, -2.921968648686e-01,
+                            0,                    0,                   0,                          1;*/
+        /*cali_paremeter << -1.857739385241e-03,-9.999659513510e-01, -8.039975204516e-03, -4.784029760483e-03,
+                            -6.481465826011e-03, 8.051860151134e-03, -9.999466081774e-01, -7.337429464231e-02,
+                            9.999773098287e-01, -1.805528627661e-03, -6.496203536139e-03, -3.339968064433e-01,     //04-10
+                            0                    0,                   0,                          1;*/
+        cali_paremeter << 2.347736981471e-04, -9.999441545438e-01, -1.056347781105e-02, -2.796816941295e-03,
+                            1.044940741659e-02, 1.056535364138e-02, -9.998895741176e-01, -7.510879138296e-02, 
+                            9.999453885620e-01, 1.243653783865e-04, 1.045130299567e-02, -2.721327964059e-01,
+                            0,                     0,                   0,                          1;
+         
+        Eigen::Matrix<double, 4, 4> myloam_pose_f;
+        myloam_pose_f = cali_paremeter * mylio_pose * cali_paremeter.inverse();
+
+        pose2 << myloam_pose_f(0,0) << " " << myloam_pose_f(0,1) << " " << myloam_pose_f(0,2) << " " << myloam_pose_f(0,3) << " "
+                << myloam_pose_f(1,0) << " " << myloam_pose_f(1,1) << " " << myloam_pose_f(1,2) << " " << myloam_pose_f(1,3) << " "
+                << myloam_pose_f(2,0) << " " << myloam_pose_f(2,1) << " " << myloam_pose_f(2,2) << " " << myloam_pose_f(2,3) << std::endl;
+
+        pose2.close();
+        // 跑KITTI数据集/end
     }
 
     void publishOdometry()
@@ -1642,6 +1686,29 @@ public:
         laserOdometryROS.pose.pose.position.z = transformTobeMapped[5];
         laserOdometryROS.pose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(transformTobeMapped[0], transformTobeMapped[1], transformTobeMapped[2]);
         pubLaserOdometryGlobal.publish(laserOdometryROS);
+        // 跑KITTI数据集
+        //保存轨迹，path_save是文件目录,txt文件提前建好,/home/xxx/xxx.txt,
+   		std::ofstream pose1("/home/ubuntu/lio_sam_kitti_ws/src/MY-LIO-SAM-main/LIO-SAM-master/slam_data/pose1.txt", std::ios::app);
+		pose1.setf(std::ios::scientific, std::ios::floatfield);
+		pose1.precision(9);
+        // if(flag_tum=1){
+			static double timeStart = laserOdometryROS.header.stamp.toSec();
+            // flag_tum=0;
+        // }
+		auto T1 =ros::Time().fromSec(timeStart) ;
+        // tf::Quaternion quat;
+        // tf::createQuaternionMsgFromRollPitchYaw(double r, double p, double y);//返回四元数
+        pose1<< laserOdometryROS.header.stamp -T1<< " "
+            << -laserOdometryROS.pose.pose.position.x << " "
+            <<- laserOdometryROS.pose.pose.position.z << " "
+            << -laserOdometryROS.pose.pose.position.y<< " "
+            << laserOdometryROS.pose.pose.orientation.x << " "
+            << laserOdometryROS.pose.pose.orientation.y << " "
+            << laserOdometryROS.pose.pose.orientation.z << " "
+            << laserOdometryROS.pose.pose.orientation.w << std::endl;
+		pose1.close();
+
+        // 跑KITTI数据集/end
         
         // Publish TF
         static tf::TransformBroadcaster br;
