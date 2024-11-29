@@ -57,6 +57,7 @@
 
 using namespace std;
 
+// 点云类型定义,xyz和强度
 typedef pcl::PointXYZI PointType;
 
 enum class SensorType { VELODYNE, OUSTER, LIVOX };
@@ -261,7 +262,9 @@ public:
         nh.param<float>("lio_sam/globalMapVisualizationPoseDensity", globalMapVisualizationPoseDensity, 10.0);
         nh.param<float>("lio_sam/globalMapVisualizationLeafSize", globalMapVisualizationLeafSize, 1.0);
 
+        // 100u秒
         usleep(100);
+        
     }
 
     sensor_msgs::Imu imuConverter(const sensor_msgs::Imu& imu_in)

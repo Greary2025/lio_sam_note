@@ -17,4 +17,7 @@
     <!--- Run Rviz-->
     <include file="$(find lio_sam)/launch/include/module_rviz.launch" />
 
+    <!--- Run Rosbag-->
+    <include file="$(find lio_sam)/launch/include/module_rosbag.launch" />
+
 </launch>

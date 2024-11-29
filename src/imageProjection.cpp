@@ -35,6 +35,8 @@ using PointXYZIRT = VelodynePointXYZIRT;
 
 const int queueLength = 2000;
 
+// 这个语法表示 ImageProjection 继承了 ParamServer 类
+// 继承关系意味着 ImageProjection 类可以访问 ParamServer 中的所有public 和 protected 成员（包括函数和变量），并且能够复用 ParamServer 类中的功能。
 class ImageProjection : public ParamServer
 {
 private:
@@ -89,10 +91,31 @@ private:
 
 public:
     ImageProjection():
+    // 点云校正;初始值设为 0，表示还未检查过点云数据中的时间戳字段。
     deskewFlag(0)
     {
+        // imu
+        // 这里设置为 2000，意味着最多存储 2000 条 IMU 消息。
+        // this 指针是 ImageProjection 类的实例指针，表示回调函数 imuHandler 属于该类的成员函数，ROS 会在回调时自动传递该类的实例指针。
+        // ros::TransportHints() 是用来设置传输参数的对象。tcpNoDelay() 表示启用 TCP 的“无延迟”模式（Nagle 算法禁用），这可以减少网络延迟，特别是对于实时系统中的 IMU 数据传输。
         subImu        = nh.subscribe<sensor_msgs::Imu>(imuTopic, 2000, &ImageProjection::imuHandler, this, ros::TransportHints().tcpNoDelay());
+        // 这是一个字符串，表示订阅的里程计数据话题。odomTopic 是一个变量（可能是 odomTopic = "odom"），然后 _incremental 被附加到话题名上，形成最终的订阅话题名。
+        // 例如，如果 odomTopic 是 "odom"，最终订阅的话题将是 "odom_incremental"。
+        // 这种命名方式可能是为了区分增量里程计数据与其他类型的里程计数据。
+        // 这是回调函数指针，当订阅到新的 Odometry 消息时，odometryHandler 函数将被调用来处理这些数据。
+        // odometryHandler 是 ImageProjection 类的成员函数，它负责处理从 odomTopic+"_incremental" 话题接收到的增量里程计数据。
         subOdom       = nh.subscribe<nav_msgs::Odometry>(odomTopic+"_incremental", 2000, &ImageProjection::odometryHandler, this, ros::TransportHints().tcpNoDelay());
+        // nh.subscribe<sensor_msgs::PointCloud2>：使用 nh（ros::NodeHandle 对象）创建一个订阅者，
+        // 订阅的消息类型是 sensor_msgs::PointCloud2，这是 ROS 中用于表示点云数据的标准消息类型。
+        // pointCloudTopic：这是订阅的主题名称，类型为 std::string，需要在前面定义。比如 pointCloudTopic 可以是 "/laser_cloud" 或其他包含点云数据的主题。
+        // 5：消息队列大小。在消息接收频率较高的情况下，此参数决定缓存多少条未处理的消息。
+        // 这里设置为 5 表示缓存 5 条未处理的点云消息，如果处理速度低于接收速度，旧消息会被丢弃以腾出空间。
+        // &ImageProjection::cloudHandler：这是处理接收到的消息的回调函数。在接收到点云消息时，ROS 会调用该函数。
+        // 这里的 cloudHandler 是 ImageProjection 类的一个成员函数，负责处理接收到的点云数据。
+    // this：表示回调函数的对象指针。因为 cloudHandler 是 ImageProjection 类的成员函数，所以需要传入当前对象 this。
+        // this传入的应该是 subLaserCloud 的实例指针,传给laserCloudMsg,laserCloudMsg相当于订阅了一部分的pointCloudTopic数据
+        // ros::TransportHints().tcpNoDelay()：这是传输设置。
+        // tcpNoDelay() 用于禁用 TCP 的 Nagle 算法，确保消息低延迟地传输，适用于实时性要求较高的点云数据传输，减少延迟。
         subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>(pointCloudTopic, 5, &ImageProjection::cloudHandler, this, ros::TransportHints().tcpNoDelay());
 
         pubExtractedCloud = nh.advertise<sensor_msgs::PointCloud2> ("lio_sam/deskew/cloud_deskewed", 1);
@@ -177,40 +200,66 @@ public:
         odomQueue.push_back(*odometryMsg);
     }
 
-    void cloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
+    // const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg：函数的输入参数，是一个指向 sensor_msgs::PointCloud2 消息的常量指针，表示接收到的激光雷达点云数据。
+    // sensor_msgs::PointCloud2 是ROS中的标准消息类型，通常用于存储三维点云数据。
+    // void cloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
+    void cloudHandler(const sensor_msgs::PointCloud2::ConstPtr& laserCloudMsg)
     {
+        // 缓存点云数据
         if (!cachePointCloud(laserCloudMsg))
             return;
 
+        // 点云数据预处理
+        // 调用 deskewInfo 函数进行信息校正（如时间同步、去畸变等）。
         if (!deskewInfo())
             return;
 
+        // 点云数据投影
+        // 调用 projectPointCloud 函数进行点云的投影，可能是将点云数据从激光雷达坐标系转换到其他坐标系，或者进行某种映射处理。
         projectPointCloud();
 
+        // 点云数据提取
+        // 调用 cloudExtraction 函数来提取点云中的特定信息或对象，例如地面、障碍物或其他感兴趣的部分。
         cloudExtraction();
 
+        // 发布处理后的点云数据
+        // 调用 publishClouds 函数将处理后的点云数据发布到ROS网络，以供其他节点使用。
         publishClouds();
 
+        // 重置参数
+        // 为了准备下一轮处理，确保参数状态清洁。
         resetParameters();
     }
 
+    // bool：函数返回一个布尔值，表示处理是否成功。
+    // laserCloudMsg：是传入的激光雷达点云消息，类型为 sensor_msgs::PointCloud2ConstPtr。
     bool cachePointCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
+    // bool cachePointCloud(const sensor_msgs::PointCloud2::ConstPtr& laserCloudMsg)
     {
+        // 遍历点云数据;查看
+        // 创建一个PCL点云对象来存储转换后的数据
+        // pcl::PointCloud<pcl::PointXYZ> cloud;
+        // for (const auto& point : cloud.points) {
+        //     ROS_INFO("Point (x, y, z): (%.3f, %.3f, %.3f)", point.x, point.y, point.z);
+        // }
+
         // cache point cloud
         cloudQueue.push_back(*laserCloudMsg);
         if (cloudQueue.size() <= 2)
             return false;
 
         // convert cloud
+        // 将队列中的第一个点云数据移到 currentCloudMsg，并从队列中移除。
         currentCloudMsg = std::move(cloudQueue.front());
         cloudQueue.pop_front();
         if (sensor == SensorType::VELODYNE || sensor == SensorType::LIVOX)
         {
+            // 将 currentCloudMsg 转换为 laserCloudIn（PCL 格式）。这些传感器的数据通常是标准的点云数据。
             pcl::moveFromROSMsg(currentCloudMsg, *laserCloudIn);
             // 跑KITTI数据集
-            // Remove Nan points                                                                   （为跑kitti数据集改，本没有下面两行）
-            std::vector<int> indices;
-            pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
+            // Remove Nan points                                （为跑kitti数据集改，本没有下面两行）
+            // std::vector<int> indices;
+            // pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
             // 跑KITTI数据集/end
         }
         else if (sensor == SensorType::OUSTER)
@@ -242,16 +291,19 @@ public:
         timeScanCur = cloudHeader.stamp.toSec();
         timeScanEnd = timeScanCur + laserCloudIn->points.back().time;
 
+        // 跑KITTI数据集
+        
         // check dense flag
-        // if (laserCloudIn->is_dense == false)
-        // {
-        //     ROS_ERROR("Point cloud is not in dense format, please remove NaN points first!");
-        //     ros::shutdown();
-        // }
+        if (laserCloudIn->is_dense == false)
+        {
+            ROS_ERROR("Point cloud is not in dense format, please remove NaN points first!");
+            ros::shutdown();
+        }
 
         // 跑KITTI数据集
-        if (!has_ring)
-            return true;
+
+        // if (!has_ring)
+        //     return true;
         // 跑KITTI数据集/end
 
         // check ring channel
@@ -532,15 +584,15 @@ public:
     {
         int cloudSize = laserCloudIn->points.size();
         // 跑KITTI数据集
-        bool halfPassed = false;
-        cloudInfo.startOrientation = -atan2(laserCloudIn->points[0].y, laserCloudIn->points[0].x);
-        cloudInfo.endOrientation   = -atan2(laserCloudIn->points[laserCloudIn->points.size() - 1].y,
-                                                     laserCloudIn->points[laserCloudIn->points.size() - 1].x) + 2 * M_PI;
-        if (cloudInfo.endOrientation - cloudInfo.startOrientation > 3 * M_PI) {
-            cloudInfo.endOrientation -= 2 * M_PI;
-        } else if (cloudInfo.endOrientation - cloudInfo.startOrientation < M_PI)
-            cloudInfo.endOrientation += 2 * M_PI;
-        cloudInfo.orientationDiff = cloudInfo.endOrientation - cloudInfo.startOrientation;
+        // bool halfPassed = false;
+        // cloudInfo.startOrientation = -atan2(laserCloudIn->points[0].y, laserCloudIn->points[0].x);
+        // cloudInfo.endOrientation   = -atan2(laserCloudIn->points[laserCloudIn->points.size() - 1].y,
+        //                                              laserCloudIn->points[laserCloudIn->points.size() - 1].x) + 2 * M_PI;
+        // if (cloudInfo.endOrientation - cloudInfo.startOrientation > 3 * M_PI) {
+        //     cloudInfo.endOrientation -= 2 * M_PI;
+        // } else if (cloudInfo.endOrientation - cloudInfo.startOrientation < M_PI)
+        //     cloudInfo.endOrientation += 2 * M_PI;
+        // cloudInfo.orientationDiff = cloudInfo.endOrientation - cloudInfo.startOrientation;
         // 跑KITTI数据集/end
 
         // range image projection
@@ -557,18 +609,18 @@ public:
                 continue;
 
             // 跑KITTI数据集
-            // int rowIdn = laserCloudIn->points[i].ring;
+            int rowIdn = laserCloudIn->points[i].ring;
 
             // 跑KITTI数据集
-            int rowIdn = -1;
-            if (has_ring == true){
-                rowIdn = laserCloudIn->points[i].ring;
-            }
-            else{
-                float verticalAngle, horizonAngle;
-                verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y)) * 180 / M_PI;
-                rowIdn = (verticalAngle + ang_bottom) / ang_res_y;
-            }
+            // int rowIdn = -1;
+            // if (has_ring == true){
+            //     rowIdn = laserCloudIn->points[i].ring;
+            // }
+            // else{
+            //     float verticalAngle, horizonAngle;
+            //     verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y)) * 180 / M_PI;
+            //     rowIdn = (verticalAngle + ang_bottom) / ang_res_y;
+            // }
             // 跑KITTI数据集/end
 
             if (rowIdn < 0 || rowIdn >= N_SCAN)
@@ -599,35 +651,35 @@ public:
                 continue;
 
             // 跑KITTI数据集
-            // thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
             // 跑KITTI数据集
 
-            if (has_ring == true)
-                thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
-            else {
-                    float ori = -atan2(thisPoint.y, thisPoint.x);
-                    if (!halfPassed) {
-                        if (ori < cloudInfo.startOrientation - M_PI / 2) {
-                            ori += 2 * M_PI;
-                        } else if (ori > cloudInfo.startOrientation + M_PI * 3 / 2) {
-                            ori -= 2 * M_PI;
-                        }
-                        if (ori - cloudInfo.startOrientation > M_PI) {
-                            halfPassed = true;
-                        }
-                    } else {
-                        ori += 2 * M_PI;
-                        if (ori < cloudInfo.endOrientation - M_PI * 3 / 2) {
-                            ori += 2 * M_PI;
-                        } else if (ori > cloudInfo.endOrientation + M_PI / 2) {
-                            ori -= 2 * M_PI;
-                        }
-                    }
-                    float relTime = (ori - cloudInfo.startOrientation) / cloudInfo.orientationDiff;
-                    // 激光雷达10Hz，周期0.1
-                    laserCloudIn->points[i].time = 0.1 * relTime;
-                    thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
-            }
+            // if (has_ring == true)
+            //     thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            // else {
+            //         float ori = -atan2(thisPoint.y, thisPoint.x);
+            //         if (!halfPassed) {
+            //             if (ori < cloudInfo.startOrientation - M_PI / 2) {
+            //                 ori += 2 * M_PI;
+            //             } else if (ori > cloudInfo.startOrientation + M_PI * 3 / 2) {
+            //                 ori -= 2 * M_PI;
+            //             }
+            //             if (ori - cloudInfo.startOrientation > M_PI) {
+            //                 halfPassed = true;
+            //             }
+            //         } else {
+            //             ori += 2 * M_PI;
+            //             if (ori < cloudInfo.endOrientation - M_PI * 3 / 2) {
+            //                 ori += 2 * M_PI;
+            //             } else if (ori > cloudInfo.endOrientation + M_PI / 2) {
+            //                 ori -= 2 * M_PI;
+            //             }
+            //         }
+            //         float relTime = (ori - cloudInfo.startOrientation) / cloudInfo.orientationDiff;
+            //         // 激光雷达10Hz，周期0.1
+            //         laserCloudIn->points[i].time = 0.1 * relTime;
+            //         thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            // }
             // 跑KITTI数据集/end
 
             rangeMat.at<float>(rowIdn, columnIdn) = range;
@@ -677,9 +729,16 @@ int main(int argc, char** argv)
 
     ImageProjection IP;
     
+    // \033[1;32m：这是一个ANSI转义序列，用于设置文本颜色和样式。
+    // \033表示转义字符的开始，通常用来更改文本的颜色和格式。
+    // [1;32m表示粗体绿色文本。
+    // \033[0m：这个转义序列重置格式，使得后续的文本恢复到默认样式。
     ROS_INFO("\033[1;32m----> Image Projection Started.\033[0m");
 
+    // ros::MultiThreadedSpinner是ROS中的一个类，用于多线程处理回调。
+    // 括号内的数字 3 表示使用3个线程来处理ROS消息。这样可以提高回调处理效率，尤其在消息频繁或处理时间较长的情况下。
     ros::MultiThreadedSpinner spinner(3);
+    // 在调用 spin() 后，程序会一直等待和处理来自ROS的消息，直到节点关闭。
     spinner.spin();
     
     return 0;

@@ -1,0 +1,23 @@
+<launch>
+
+    <arg name="project" default="lio_sam"/>
+
+    <arg name="SYSU_bag" value="/home/john/rosbag/dcl/v1/Square_2.bag"/>
+
+    <!-- -r 1：这个参数用于控制播放速率。-r 后面的值是播放的速率倍数，1 表示按照原始速度播放。如果设置为 0.5 则是原速的一半，2 则是原速的两倍。 -->
+    <!-- -q：静音模式，指定这个参数后会让 rosbag 在播放过程中不输出任何信息到屏幕，保持界面干净。 -->
+    <!-- -d 8：延迟启动参数，-d 后的值为延迟秒数。这里设置为 8，表示在启动 rosbag 播放之前会等待 8 秒。 -->
+    <!-- $(arg SYSU_bag)：表示播放的 rosbag 文件路径，其中 SYSU_bag 是一个 ROS 参数，需要在外部传递具体的文件路径。 -->
+    <!-- <node name="rosbag_player" pkg="rosbag" type="play" output="screen" args="-r 1 -q -d 8 $(arg SYSU_bag)"> -->
+    <node name="rosbag_player" pkg="rosbag" type="play" output="screen" args="$(arg SYSU_bag)">
+        <remap from="/Alpha/velodyne_points" to="/points_raw"/>
+        <!-- <remap from="/points_raw" to="/Alpha/velodyne_points"/> -->
+	    <!-- <remap from="/Bob/velodyne_points" to="/points_raw"/> -->
+	    <!-- <remap from="/Carol/velodyne_points" to="/points_raw"/> -->
+	    <remap from="/Alpha/imu/data" to="/imu_raw"/>
+	    <!-- <remap from="/imu_raw" to="/Alpha/imu/data"/> -->
+	    <!-- <remap from="/Bob/imu/data" to="/imu_raw"/> -->
+	    <!-- <remap from="/Carol/imu/data" to="/imu_raw"/> -->
+    </node>
+
+</launch>

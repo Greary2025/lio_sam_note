@@ -29,13 +29,13 @@ using symbol_shorthand::G; // GPS pose
     */
 struct PointXYZIRPYT
 {
-    PCL_ADD_POINT4D
+    PCL_ADD_POINT4D;
     PCL_ADD_INTENSITY;                  // preferred way of adding a XYZ+padding
     float roll;
     float pitch;
     float yaw;
     double time;
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW   // make sure our new allocators are aligned
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW ;  // make sure our new allocators are aligned
 } EIGEN_ALIGN16;                    // enforce SSE padding for correct memory alignment
 
 POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRPYT,
@@ -140,8 +140,8 @@ public:
     int laserCloudCornerLastDSNum = 0;
     int laserCloudSurfLastDSNum = 0;
     // 跑KITTI数据集
-    //  double timeStart ;
-    int flag_tum=1;
+    // double timeStart ;
+    // // int flag_tum=1;
     // 跑KITTI数据集/end
 
     bool aLoopIsClosed = false;
@@ -192,6 +192,7 @@ public:
         downSizeFilterICP.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
         downSizeFilterSurroundingKeyPoses.setLeafSize(surroundingKeyframeDensity, surroundingKeyframeDensity, surroundingKeyframeDensity); // for surrounding key poses of scan-to-map optimization
 
+        // 数据初始化
         allocateMemory();
     }
 
@@ -504,14 +505,20 @@ public:
 
     void loopClosureThread()
     {
+        // 没有回环检测(不开启的话)
         if (loopClosureEnableFlag == false)
             return;
 
+        // 以一定的速度执行代码，通常用于定期发布消息或执行某些操作。
+        // 由于main函数中已经阻塞线程
         ros::Rate rate(loopClosureFrequency);
         while (ros::ok())
         {
+            // 停止频率,防止两次回调
             rate.sleep();
+            // 执行回环检测
             performLoopClosure();
+            // 可视化回环检测
             visualizeLoopClosure();
         }
     }
@@ -530,9 +537,11 @@ public:
 
     void performLoopClosure()
     {
+        // 关键点没有数据
         if (cloudKeyPoses3D->points.empty() == true)
             return;
 
+        // 存储当时的关键点
         mtx.lock();
         *copy_cloudKeyPoses3D = *cloudKeyPoses3D;
         *copy_cloudKeyPoses6D = *cloudKeyPoses6D;
@@ -541,9 +550,9 @@ public:
         // find keys
         int loopKeyCur;
         int loopKeyPre;
-        if (detectLoopClosureExternal(&loopKeyCur, &loopKeyPre) == false)
-            if (detectLoopClosureDistance(&loopKeyCur, &loopKeyPre) == false)
-                return;
+
+        if (detectLoopClosureDistance(&loopKeyCur, &loopKeyPre) == false)
+            return;
 
         // extract cloud
         pcl::PointCloud<PointType>::Ptr cureKeyframeCloud(new pcl::PointCloud<PointType>());
@@ -611,6 +620,7 @@ public:
 
     bool detectLoopClosureDistance(int *latestID, int *closestID)
     {
+        // 最后一个是点云强度
         int loopKeyCur = copy_cloudKeyPoses3D->size() - 1;
         int loopKeyPre = -1;
 
@@ -1633,44 +1643,45 @@ public:
 
         // 跑KITTI数据集
 
-        // 位姿输出到txt文档
-        std::ofstream pose2("zz/pose2.txt", std::ios::app);
-        pose2.setf(std::ios::scientific, std::ios::floatfield);
-        // pose1.precision(15);
+        // // 位姿输出到txt文档
+        // std::ofstream pose2("/home/john/lio_sam_ws/path_save/pose2.txt", std::ios::app);
+        // pose2.setf(std::ios::scientific, std::ios::floatfield);
+        // // pose1.precision(15);
 
-        //save final trajectory in the left camera coordinate system.
-        Eigen::Matrix3d rotation_matrix;
-        rotation_matrix = Eigen::AngleAxisd(pose_in.yaw, Eigen::Vector3d::UnitZ()) * 
-                        Eigen::AngleAxisd(pose_in.pitch, Eigen::Vector3d::UnitY()) * 
-                        Eigen::AngleAxisd(pose_in.roll, Eigen::Vector3d::UnitX());
-        Eigen::Matrix<double, 4, 4> mylio_pose;
-        mylio_pose.topLeftCorner(3,3) = rotation_matrix;
+        // //save final trajectory in the left camera coordinate system.
+        // Eigen::Matrix3d rotation_matrix;
+        // rotation_matrix = Eigen::AngleAxisd(pose_in.yaw, Eigen::Vector3d::UnitZ()) * 
+        //                 Eigen::AngleAxisd(pose_in.pitch, Eigen::Vector3d::UnitY()) * 
+        //                 Eigen::AngleAxisd(pose_in.roll, Eigen::Vector3d::UnitX());
+        // Eigen::Matrix<double, 4, 4> mylio_pose;
+        // mylio_pose.topLeftCorner(3,3) = rotation_matrix;
 
-        mylio_pose(0,3) = pose_in.x;
-        mylio_pose(1,3) = pose_in.y;
-        mylio_pose(2,3) = pose_in.z;
-        Eigen::Matrix<double, 4, 4> cali_paremeter;
-        /*cali_paremeter << 4.276802385584e-04, -9.999672484946e-01, -8.084491683471e-03, -1.198459927713e-02,  //00-02
-                            -7.210626507497e-03, 8.081198471645e-03, -9.999413164504e-01, -5.403984729748e-02, 
-                            9.999738645903e-01, 4.859485810390e-04, -7.206933692422e-03, -2.921968648686e-01,
-                            0,                    0,                   0,                          1;*/
-        /*cali_paremeter << -1.857739385241e-03,-9.999659513510e-01, -8.039975204516e-03, -4.784029760483e-03,
-                            -6.481465826011e-03, 8.051860151134e-03, -9.999466081774e-01, -7.337429464231e-02,
-                            9.999773098287e-01, -1.805528627661e-03, -6.496203536139e-03, -3.339968064433e-01,     //04-10
-                            0                    0,                   0,                          1;*/
-        cali_paremeter << 2.347736981471e-04, -9.999441545438e-01, -1.056347781105e-02, -2.796816941295e-03,
-                            1.044940741659e-02, 1.056535364138e-02, -9.998895741176e-01, -7.510879138296e-02, 
-                            9.999453885620e-01, 1.243653783865e-04, 1.045130299567e-02, -2.721327964059e-01,
-                            0,                     0,                   0,                          1;
+        // mylio_pose(0,3) = pose_in.x;
+        // mylio_pose(1,3) = pose_in.y;
+        // mylio_pose(2,3) = pose_in.z;
+        // Eigen::Matrix<double, 4, 4> cali_paremeter;
+        // // cali_paremeter << 4.276802385584e-04, -9.999672484946e-01, -8.084491683471e-03, -1.198459927713e-02,  //00-02
+        // //                     -7.210626507497e-03, 8.081198471645e-03, -9.999413164504e-01, -5.403984729748e-02, 
+        // //                     9.999738645903e-01, 4.859485810390e-04, -7.206933692422e-03, -2.921968648686e-01,
+        // //                     0,                    0,                   0,                          1;
+        // cali_paremeter << -1.857739385241e-03,-9.999659513510e-01, -8.039975204516e-03, -4.784029760483e-03,
+        //                     -6.481465826011e-03, 8.051860151134e-03, -9.999466081774e-01, -7.337429464231e-02,
+        //                     9.999773098287e-01, -1.805528627661e-03, -6.496203536139e-03, -3.339968064433e-01,  //04-10
+        //                     0                    0,                   0,                          1;
+        // // cali_paremeter << 2.347736981471e-04, -9.999441545438e-01, -1.056347781105e-02, -2.796816941295e-03,    //11
+        // //                     1.044940741659e-02, 1.056535364138e-02, -9.998895741176e-01, -7.510879138296e-02, 
+        // //                     9.999453885620e-01, 1.243653783865e-04, 1.045130299567e-02, -2.721327964059e-01,
+        // //                     0,                     0,                   0,                          1;
          
-        Eigen::Matrix<double, 4, 4> myloam_pose_f;
-        myloam_pose_f = cali_paremeter * mylio_pose * cali_paremeter.inverse();
+        // Eigen::Matrix<double, 4, 4> myloam_pose_f;
+        // myloam_pose_f = cali_paremeter * mylio_pose * cali_paremeter.inverse();
 
-        pose2 << myloam_pose_f(0,0) << " " << myloam_pose_f(0,1) << " " << myloam_pose_f(0,2) << " " << myloam_pose_f(0,3) << " "
-                << myloam_pose_f(1,0) << " " << myloam_pose_f(1,1) << " " << myloam_pose_f(1,2) << " " << myloam_pose_f(1,3) << " "
-                << myloam_pose_f(2,0) << " " << myloam_pose_f(2,1) << " " << myloam_pose_f(2,2) << " " << myloam_pose_f(2,3) << std::endl;
+        // pose2 << myloam_pose_f(0,0) << " " << myloam_pose_f(0,1) << " " << myloam_pose_f(0,2) << " " << myloam_pose_f(0,3) << " "
+        //         << myloam_pose_f(1,0) << " " << myloam_pose_f(1,1) << " " << myloam_pose_f(1,2) << " " << myloam_pose_f(1,3) << " "
+        //         << myloam_pose_f(2,0) << " " << myloam_pose_f(2,1) << " " << myloam_pose_f(2,2) << " " << myloam_pose_f(2,3) << std::endl;
 
-        pose2.close();
+        // pose2.close();
+
         // 跑KITTI数据集/end
     }
 
@@ -1687,26 +1698,27 @@ public:
         laserOdometryROS.pose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(transformTobeMapped[0], transformTobeMapped[1], transformTobeMapped[2]);
         pubLaserOdometryGlobal.publish(laserOdometryROS);
         // 跑KITTI数据集
-        //保存轨迹，path_save是文件目录,txt文件提前建好,/home/xxx/xxx.txt,
-   		std::ofstream pose1("/home/ubuntu/lio_sam_kitti_ws/src/MY-LIO-SAM-main/LIO-SAM-master/slam_data/pose1.txt", std::ios::app);
-		pose1.setf(std::ios::scientific, std::ios::floatfield);
-		pose1.precision(9);
-        // if(flag_tum=1){
-			static double timeStart = laserOdometryROS.header.stamp.toSec();
-            // flag_tum=0;
-        // }
-		auto T1 =ros::Time().fromSec(timeStart) ;
-        // tf::Quaternion quat;
-        // tf::createQuaternionMsgFromRollPitchYaw(double r, double p, double y);//返回四元数
-        pose1<< laserOdometryROS.header.stamp -T1<< " "
-            << -laserOdometryROS.pose.pose.position.x << " "
-            <<- laserOdometryROS.pose.pose.position.z << " "
-            << -laserOdometryROS.pose.pose.position.y<< " "
-            << laserOdometryROS.pose.pose.orientation.x << " "
-            << laserOdometryROS.pose.pose.orientation.y << " "
-            << laserOdometryROS.pose.pose.orientation.z << " "
-            << laserOdometryROS.pose.pose.orientation.w << std::endl;
-		pose1.close();
+        
+        // //保存轨迹，path_save是文件目录,txt文件提前建好,/home/xxx/xxx.txt,
+   		// std::ofstream pose1("/home/john/lio_sam_ws/path_save/pose1.txt", std::ios::app);
+		// pose1.setf(std::ios::scientific, std::ios::floatfield);
+		// pose1.precision(9);
+        // // if(flag_tum=1){
+		// 	static double timeStart = laserOdometryROS.header.stamp.toSec();
+        // //     flag_tum=0;
+        // // }
+		// auto T1 =ros::Time().fromSec(timeStart) ;
+        // // tf::Quaternion quat;
+        // // tf::createQuaternionMsgFromRollPitchYaw(double r, double p, double y);//返回四元数
+        // pose1<< laserOdometryROS.header.stamp -T1<< " "
+        //     << -laserOdometryROS.pose.pose.position.x << " "
+        //     <<- laserOdometryROS.pose.pose.position.z << " "
+        //     << -laserOdometryROS.pose.pose.position.y<< " "
+        //     << laserOdometryROS.pose.pose.orientation.x << " "
+        //     << laserOdometryROS.pose.pose.orientation.y << " "
+        //     << laserOdometryROS.pose.pose.orientation.z << " "
+        //     << laserOdometryROS.pose.pose.orientation.w << std::endl;
+		// pose1.close();
 
         // 跑KITTI数据集/end
         
@@ -1828,17 +1840,23 @@ public:
 
 int main(int argc, char** argv)
 {
+    // 相当于全局节点
     ros::init(argc, argv, "lio_sam");
 
     mapOptimization MO;
 
     ROS_INFO("\033[1;32m----> Map Optimization Started.\033[0m");
     
+    // 创建一个线程，用于执行mapOptimization类的loopClosureThread()函数,回环检测,优化位姿
     std::thread loopthread(&mapOptimization::loopClosureThread, &MO);
+    // 创建一个线程，用于执行mapOptimization类的visualizeGlobalMapThread()函数,可视化全局地图
     std::thread visualizeMapThread(&mapOptimization::visualizeGlobalMapThread, &MO);
 
+    // ros::spin() 函数会阻塞当前线程，直到 ROS 系统停止或发生错误。
+    // 一直执行loopClosureThread()和visualizeGlobalMapThread()回调函数
     ros::spin();
 
+    // 等待两个线程执行完毕,关闭线程
     loopthread.join();
     visualizeMapThread.join();
 
