@@ -3,7 +3,9 @@
   <xacro:property name="PI" value="3.1415926535897931" />
 
   <link name="chassis_link"></link>
+  <!-- chassis 底盘 -->
 
+  <!-- 定义了一个固定类型的关节base_link_joint，连接base_link和chassis_link，原点位置和旋转均为零。 -->
   <link name="base_link"></link>
   <joint name="base_link_joint" type="fixed">
     <parent link="base_link"/>
@@ -11,6 +13,7 @@
     <origin xyz="0 0 0" rpy="0 0 0" />
   </joint>
 
+  <!-- 定义了一个固定类型的关节imu_joint，连接chassis_link和imu_link，原点位置和旋转均为零。 -->
   <link name="imu_link"> </link>
   <joint name="imu_joint" type="fixed">
     <parent link="chassis_link" />
@@ -18,6 +21,7 @@
     <origin xyz="0 0 0" rpy="0 0 0" />
   </joint>
 
+  <!-- 定义了一个固定类型的关节velodyne_joint，连接chassis_link和velodyne，原点位置和旋转均为零。 -->
   <link name="velodyne"> </link>
   <joint name="velodyne_joint" type="fixed">
     <parent link="chassis_link" />
@@ -25,6 +29,7 @@
     <origin xyz="0 0 0" rpy="0 0 0" />
   </joint>
 
+  <!-- 定义了一个固定类型的关节navsat_joint，连接chassis_link和navsat_link，原点位置和旋转均为零。 -->
   <link name="navsat_link"> </link>
   <joint name="navsat_joint" type="fixed">
     <parent link="chassis_link" />
