@@ -81,6 +81,7 @@ private:
     float odomIncreY;
     float odomIncreZ;
 
+    // 通过cloud_info.msg构建cloud_info.h包含的cloud_info_结构体
     lio_sam::cloud_info cloudInfo;
     double timeScanCur;
     double timeScanEnd;
@@ -92,6 +93,7 @@ private:
 public:
     ImageProjection():
     // 点云校正;初始值设为 0，表示还未检查过点云数据中的时间戳字段。
+    // 是否需要对图像或点云数据进行去畸变处理（deskew）。
     deskewFlag(0)
     {
         // imu
@@ -118,7 +120,10 @@ public:
         // tcpNoDelay() 用于禁用 TCP 的 Nagle 算法，确保消息低延迟地传输，适用于实时性要求较高的点云数据传输，减少延迟。
         subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>(pointCloudTopic, 5, &ImageProjection::cloudHandler, this, ros::TransportHints().tcpNoDelay());
 
+        // 话题名称为 "lio_sam/deskew/cloud_deskewed"，队列大小为 1
+        // 用于发布去畸变后的点云数据
         pubExtractedCloud = nh.advertise<sensor_msgs::PointCloud2> ("lio_sam/deskew/cloud_deskewed", 1);
+        // 发布者将发布与点云数据相关的额外信息(准备去畸变的相关信息）
         pubLaserCloudInfo = nh.advertise<lio_sam::cloud_info> ("lio_sam/deskew/cloud_info", 1);
 
         allocateMemory();
@@ -127,6 +132,7 @@ public:
         pcl::console::setVerbosityLevel(pcl::console::L_ERROR);
     }
 
+    // 为 PCL 点云对象分配内存
     void allocateMemory()
     {
         laserCloudIn.reset(new pcl::PointCloud<PointXYZIRT>());
@@ -145,6 +151,7 @@ public:
         resetParameters();
     }
 
+    // 重置参数
     void resetParameters()
     {
         laserCloudIn->clear();
@@ -167,8 +174,10 @@ public:
         columnIdnCountVec.assign(N_SCAN, 0);
     }
 
+    // 析构函数的名称与类名相同，但前面有一个波浪号 ~
     ~ImageProjection(){}
 
+    // imuHandler 函数用于处理接收到的 IMU 数据
     void imuHandler(const sensor_msgs::Imu::ConstPtr& imuMsg)
     {
         sensor_msgs::Imu thisImu = imuConverter(*imuMsg);
@@ -176,7 +185,7 @@ public:
         std::lock_guard<std::mutex> lock1(imuLock);
         imuQueue.push_back(thisImu);
 
-        // debug IMU data
+        // debug IMU data(测试IMU数据）
         // cout << std::setprecision(6);
         // cout << "IMU acc: " << endl;
         // cout << "x: " << thisImu.linear_acceleration.x << 
@@ -194,6 +203,7 @@ public:
         // cout << "roll: " << imuRoll << ", pitch: " << imuPitch << ", yaw: " << imuYaw << endl << endl;
     }
 
+    // odometryHandler 函数用于处理接收到的里程计数据
     void odometryHandler(const nav_msgs::Odometry::ConstPtr& odometryMsg)
     {
         std::lock_guard<std::mutex> lock2(odoLock);
@@ -258,13 +268,14 @@ public:
             pcl::moveFromROSMsg(currentCloudMsg, *laserCloudIn);
             // 跑KITTI数据集
             // Remove Nan points                                （为跑kitti数据集改，本没有下面两行）
+            // indices 是一个索引向量，用于存储保留的点的索引
             // std::vector<int> indices;
             // pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
             // 跑KITTI数据集/end
         }
         else if (sensor == SensorType::OUSTER)
         {
-            // Convert to Velodyne format
+            // Convert to Velodyne format(OUSTER数据格式不同，转换为Velodyne格式）
             pcl::moveFromROSMsg(currentCloudMsg, *tmpOusterCloudIn);
             laserCloudIn->points.resize(tmpOusterCloudIn->size());
             laserCloudIn->is_dense = tmpOusterCloudIn->is_dense;
@@ -287,11 +298,12 @@ public:
         }
 
         // get timestamp
+        // 获取当前点云数据的时间戳，消息头中的时间戳是 ROS::Time 类型，通过 toSec() 函数转换为 double 类型
         cloudHeader = currentCloudMsg.header;
+        // 扫描开始时间
         timeScanCur = cloudHeader.stamp.toSec();
+        // 扫描结束时间
         timeScanEnd = timeScanCur + laserCloudIn->points.back().time;
-
-        // 跑KITTI数据集
         
         // check dense flag
         if (laserCloudIn->is_dense == false)
@@ -307,6 +319,8 @@ public:
         // 跑KITTI数据集/end
 
         // check ring channel
+        // 检查点云数据是否包含 "ring" 通道信息
+        // 环通道是某些激光雷达（如Velodyne、Ouster）提供的点的环索引，通常标识点云中每个点所属的激光发射器通道。
         static int ringFlag = 0;
         if (ringFlag == 0)
         {
@@ -321,17 +335,20 @@ public:
             }
             if (ringFlag == -1)
             {
+                // 点云数据缺少环通道（ring channel）信息。
                 ROS_ERROR("Point cloud ring channel not available, please configure your point cloud data!");
                 ros::shutdown();
             }
         }
 
         // check point time
+        // 检查点云数据是否包含 "time" 通道信息
         if (deskewFlag == 0)
         {
             deskewFlag = -1;
             for (auto &field : currentCloudMsg.fields)
             {
+                // 有时间信息，表示可以进行去畸变处理
                 if (field.name == "time" || field.name == "t")
                 {
                     deskewFlag = 1;
@@ -339,26 +356,33 @@ public:
                 }
             }
             if (deskewFlag == -1)
+                // 点云数据缺少时间信息，和缺少环通道不同，仅仅警告
                 ROS_WARN("Point cloud timestamp not available, deskew function disabled, system will drift significantly!");
         }
 
         return true;
     }
 
+    // 检查并准备去畸变处理所需的信息
     bool deskewInfo()
     {
+        // 确保对IMU数据的访问是线程安全的
         std::lock_guard<std::mutex> lock1(imuLock);
+        // 确保对里程计数据的访问是线程安全的
         std::lock_guard<std::mutex> lock2(odoLock);
 
         // make sure IMU data available for the scan
+        // 如果IMU数据队列为空，或者最早的IMU数据时间戳晚于扫描开始时间，或者最晚的IMU数据时间戳早于扫描结束时间，等待IMU数据
+        // 要求IMU开始于扫描之前，结束于扫描之后
         if (imuQueue.empty() || imuQueue.front().header.stamp.toSec() > timeScanCur || imuQueue.back().header.stamp.toSec() < timeScanEnd)
         {
             ROS_DEBUG("Waiting for IMU data ...");
             return false;
         }
 
+        // 准备imu去畸变
         imuDeskewInfo();
-
+        // 准备odom去畸变
         odomDeskewInfo();
 
         return true;
@@ -366,10 +390,12 @@ public:
 
     void imuDeskewInfo()
     {
+        // 判断IMU数据是否可用
         cloudInfo.imuAvailable = false;
 
         while (!imuQueue.empty())
         {
+            // 如果IMU数据的时间戳早于扫描开始时间，弹出队列
             if (imuQueue.front().header.stamp.toSec() < timeScanCur - 0.01)
                 imuQueue.pop_front();
             else
@@ -379,6 +405,7 @@ public:
         if (imuQueue.empty())
             return;
 
+        // 计数，用于记录当前IMU数据的索引
         imuPointerCur = 0;
 
         for (int i = 0; i < (int)imuQueue.size(); ++i)
@@ -387,6 +414,7 @@ public:
             double currentImuTime = thisImuMsg.header.stamp.toSec();
 
             // get roll, pitch, and yaw estimation for this scan
+            // 对扫描之前和扫描之后的数据做处理
             if (currentImuTime <= timeScanCur)
                 imuRPY2rosRPY(&thisImuMsg, &cloudInfo.imuRollInit, &cloudInfo.imuPitchInit, &cloudInfo.imuYawInit);
 
@@ -403,10 +431,12 @@ public:
             }
 
             // get angular velocity
+            // 获取IMU数据的角速度
             double angular_x, angular_y, angular_z;
             imuAngular2rosAngular(&thisImuMsg, &angular_x, &angular_y, &angular_z);
 
             // integrate rotation
+            // 计算IMU数据的旋转信息，将IMU数据的旋转速度与时间差相乘，得到旋转角度的增量。
             double timeDiff = currentImuTime - imuTime[imuPointerCur-1];
             imuRotX[imuPointerCur] = imuRotX[imuPointerCur-1] + angular_x * timeDiff;
             imuRotY[imuPointerCur] = imuRotY[imuPointerCur-1] + angular_y * timeDiff;
@@ -414,7 +444,7 @@ public:
             imuTime[imuPointerCur] = currentImuTime;
             ++imuPointerCur;
         }
-
+        // 保证IMU数据的时间戳早于扫描结束时间(减少一个，最后溢出才退出循环）
         --imuPointerCur;
 
         if (imuPointerCur <= 0)
@@ -505,13 +535,16 @@ public:
         odomDeskewFlag = true;
     }
 
+    // 找到给定时间点的旋转信息，求解旋转矩阵
     void findRotation(double pointTime, float *rotXCur, float *rotYCur, float *rotZCur)
     {
         *rotXCur = 0; *rotYCur = 0; *rotZCur = 0;
 
         int imuPointerFront = 0;
+        // imuPointerCur 是IMU数据的索引
         while (imuPointerFront < imuPointerCur)
         {
+            // 从某个时间点前对imu数据进行处理，找到时间点前的最后一个imu数据
             if (pointTime < imuTime[imuPointerFront])
                 break;
             ++imuPointerFront;
@@ -519,6 +552,12 @@ public:
 
         if (pointTime > imuTime[imuPointerFront] || imuPointerFront == 0)
         {
+            // 如果IMU数据的时间戳早于扫描开始时间，或者IMU数据的时间戳晚于扫描结束时间，返回初始值
+            //                                      point
+            // 错误         |----------------|
+            // 错误                                             |----------------|
+            // 正确                             |------^---------|
+            //                        imuPointerBack * * imuPointerFront
             *rotXCur = imuRotX[imuPointerFront];
             *rotYCur = imuRotY[imuPointerFront];
             *rotZCur = imuRotZ[imuPointerFront];
@@ -526,17 +565,20 @@ public:
             int imuPointerBack = imuPointerFront - 1;
             double ratioFront = (pointTime - imuTime[imuPointerBack]) / (imuTime[imuPointerFront] - imuTime[imuPointerBack]);
             double ratioBack = (imuTime[imuPointerFront] - pointTime) / (imuTime[imuPointerFront] - imuTime[imuPointerBack]);
+            // 通过线性插值计算给定时间点的旋转信息
             *rotXCur = imuRotX[imuPointerFront] * ratioFront + imuRotX[imuPointerBack] * ratioBack;
             *rotYCur = imuRotY[imuPointerFront] * ratioFront + imuRotY[imuPointerBack] * ratioBack;
             *rotZCur = imuRotZ[imuPointerFront] * ratioFront + imuRotZ[imuPointerBack] * ratioBack;
         }
     }
 
+    // 位姿线性插值
     void findPosition(double relTime, float *posXCur, float *posYCur, float *posZCur)
     {
         *posXCur = 0; *posYCur = 0; *posZCur = 0;
 
         // If the sensor moves relatively slow, like walking speed, positional deskew seems to have little benefits. Thus code below is commented.
+        // 如果传感器的移动速度相对较慢，比如走路的速度，位置偏移校正似乎几乎没有什么好处。因此，下面的代码被注释掉了。
 
         // if (cloudInfo.odomAvailable == false || odomDeskewFlag == false)
         //     return;
@@ -548,6 +590,7 @@ public:
         // *posZCur = ratio * odomIncreZ;
     }
 
+    // 对点云数据进行去畸变处理
     PointType deskewPoint(PointType *point, double relTime)
     {
         if (deskewFlag == -1 || cloudInfo.imuAvailable == false)
@@ -580,6 +623,7 @@ public:
         return newPoint;
     }
 
+    // 对点云数据进行配准处理，求解旋转矩阵
     void projectPointCloud()
     {
         int cloudSize = laserCloudIn->points.size();
@@ -717,7 +761,14 @@ public:
     
     void publishClouds()
     {
+        // cloudInfo是一个自定义的消息类型，用于发布与点云数据相关的额外信息
+        // 具体查看lio_sam包中的msg/cloud_info.msg
         cloudInfo.header = cloudHeader;
+        // cloud_deskewed是一个sensor_msgs::PointCloud2类型的消息，用于发布去畸变后的点云数据
+        // 
+        // 
+        // 
+        // 
         cloudInfo.cloud_deskewed  = publishCloud(pubExtractedCloud, extractedCloud, cloudHeader.stamp, lidarFrame);
         pubLaserCloudInfo.publish(cloudInfo);
     }
