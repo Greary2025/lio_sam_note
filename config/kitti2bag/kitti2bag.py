@@ -338,28 +338,45 @@ def save_gps_vel_data(bag, kitti, gps_frame_id, topic):
 
 
 if __name__ == "__main__":
+    # 注释：
+    # 这是一个 Python 脚本，用于将 KITTI 数据集转换为 ROS bag 文件。
     parser = argparse.ArgumentParser(description = "Convert KITTI dataset to ROS bag file the easy way!")
     # Accepted argument values
+    # kitti_type: 数据集类型，可选值为 "raw_synced"、"odom_color" 和 "odom_gray"。
     kitti_types = ["raw_synced", "odom_color", "odom_gray"]
+    # odometry_sequences: 里程计数据集的序列编号，可选值为 00 到 21。
     odometry_sequences = []
+    # 使用 for 循环生成一个包含 00 到 21 的字符串列表。
     for s in range(22):
         # str(s): 将整数 s 转换为字符串。
         # zfill(2): 在字符串的左侧填充零，直到字符串的长度为2。
         odometry_sequences.append(str(s).zfill(2))
-    
+    # 添加一个位置参数 kitti_type，用于指定数据集类型。
     parser.add_argument("kitti_type", choices = kitti_types, help = "KITTI dataset type")
+    # 添加一个可选参数 dir，用于指定数据集的根目录。如果未指定，则默认为当前工作目录。
     parser.add_argument("dir", nargs = "?", default = os.getcwd(), help = "base directory of the dataset, if no directory passed the deafult is current working directory")
+    # 添加一个可选参数 date，用于指定原始数据集的日期。如果未指定，则会提示用户输入日期。
     parser.add_argument("-t", "--date", help = "date of the raw dataset (i.e. 2011_09_26), option is only for RAW datasets.")
+    # 添加一个可选参数 drive，用于指定原始数据集的驱动器编号。如果未指定，则会提示用户输入驱动器编号。
     parser.add_argument("-r", "--drive", help = "drive number of the raw dataset (i.e. 0001), option is only for RAW datasets.")
+    # 添加一个可选参数 sequence，用于指定里程计数据集的序列编号。如果未指定，则会提示用户输入序列编号。
     parser.add_argument("-s", "--sequence", choices = odometry_sequences,help = "sequence of the odometry dataset (between 00 - 21), option is only for ODOMETRY datasets.")
+    # 解析命令行参数。
     args = parser.parse_args()
 
+    # 
     bridge = CvBridge()
+    # 选择压缩方式，可选值为 None、BZ2 和 LZ4。
+    # None: 不压缩
+    # BZ2: 文件小但慢
+    # LZ4: 文件大但快
     compression = rosbag.Compression.NONE
     # compression = rosbag.Compression.BZ2
     # compression = rosbag.Compression.LZ4
     
     # CAMERAS
+    # 相机信息列表，每个元素包含相机编号、相机名称和相机的话题名称。
+    # 相机编号：0 表示左灰度相机，1 表示右灰度相机，2 表示左彩色相机，3 表示右彩色相机。
     cameras = [
         (0, 'camera_gray_left', '/kitti/camera_gray_left'),
         (1, 'camera_gray_right', '/kitti/camera_gray_right'),
@@ -367,8 +384,9 @@ if __name__ == "__main__":
         (3, 'camera_color_right', '/kitti/camera_color_right')
     ]
 
+    # 是raw数据集
     if args.kitti_type.find("raw") != -1:
-    
+        # 检查是否提供了日期和驱动器编号。
         if args.date == None:
             print("Date option is not given. It is mandatory for raw dataset.")
             print("Usage for raw dataset: kitti2bag raw_synced [dir] -t <date> -r <drive>")
@@ -377,13 +395,13 @@ if __name__ == "__main__":
             print("Drive option is not given. It is mandatory for raw dataset.")
             print("Usage for raw dataset: kitti2bag raw_synced [dir] -t <date> -r <drive>")
             sys.exit(1)
-        
+        # 检查日期和驱动器编号是否存在。
         bag = rosbag.Bag("kitti_{}_drive_{}_{}.bag".format(args.date, args.drive, args.kitti_type[4:]), 'w', compression=compression)
         kitti = pykitti.raw(args.dir, args.date, args.drive)
         if not os.path.exists(kitti.data_path):
             print('Path {} does not exists. Exiting.'.format(kitti.data_path))
             sys.exit(1)
-
+        # 检查是否存在时间戳。
         if len(kitti.timestamps) == 0:
             print('Dataset is empty? Exiting.')
             sys.exit(1)
@@ -397,7 +415,7 @@ if __name__ == "__main__":
             gps_vel_topic = '/gps/vel'
             velo_frame_id = 'velodyne'
             velo_topic = '/points_raw'
-
+            # 旋转矩阵
             T_base_link_to_imu = np.eye(4, 4)
             T_base_link_to_imu[0:3, 3] = [-2.71/2.0-0.05, 0.32, 0.93]
 
@@ -410,52 +428,61 @@ if __name__ == "__main__":
                 (imu_frame_id, cameras[2][1], inv(kitti.calib.T_cam2_imu)),
                 (imu_frame_id, cameras[3][1], inv(kitti.calib.T_cam3_imu))
             ]
-
+            # 相机内参
+            # 读取相机内参文件
             util = pykitti.utils.read_calib_file(os.path.join(kitti.calib_path, 'calib_cam_to_cam.txt'))
 
             # Export
-            # save_static_transforms(bag, transforms, kitti.timestamps)
+            # 时间戳
+            save_static_transforms(bag, transforms, kitti.timestamps)
+            # 动态tf
             # save_dynamic_tf(bag, kitti, args.kitti_type, initial_time=None)
+            # imu数据
             # save_imu_data(bag, kitti, imu_frame_id, imu_topic)
+            # imu原始数据
             save_imu_data_raw(bag, kitti, imu_frame_id, imu_raw_topic)
+            # GPS数据
             save_gps_fix_data(bag, kitti, imu_frame_id, gps_fix_topic)
             save_gps_vel_data(bag, kitti, imu_frame_id, gps_vel_topic)
-            for camera in cameras:
-                save_camera_data(bag, args.kitti_type, kitti, util, bridge, camera=camera[0], camera_frame_id=camera[1], topic=camera[2], initial_time=None)
-                break
+            # 相机数据（占大空间）
+            # for camera in cameras:
+            #     save_camera_data(bag, args.kitti_type, kitti, util, bridge, camera=camera[0], camera_frame_id=camera[1], topic=camera[2], initial_time=None)
+            #     break
+            # 点云数据
             save_velo_data(bag, kitti, velo_frame_id, velo_topic)
 
         finally:
             print("## OVERVIEW ##")
             print(bag)
             bag.close()
-            
+    # 是odometry数据集
     elif args.kitti_type.find("odom") != -1:
-        
+        # 检查是否提供了序列编号。
         if args.sequence == None:
             print("Sequence option is not given. It is mandatory for odometry dataset.")
             print("Usage for odometry dataset: kitti2bag {odom_color, odom_gray} [dir] -s <sequence>")
             sys.exit(1)
-            
+        # 检查序列编号是否存在。
         bag = rosbag.Bag("kitti_data_odometry_{}_sequence_{}.bag".format(args.kitti_type[5:],args.sequence), 'w', compression=compression)
-        
+        # 检查是否存在时间戳。
         kitti = pykitti.odometry(args.dir, args.sequence)
         if not os.path.exists(kitti.sequence_path):
             print('Path {} does not exists. Exiting.'.format(kitti.sequence_path))
             sys.exit(1)
-
+        # 读取时间戳。
         kitti.load_calib()         
         kitti.load_timestamps() 
-             
+        # 检查是否存在时间戳。
         if len(kitti.timestamps) == 0:
             print('Dataset is empty? Exiting.')
             sys.exit(1)
-            
+        # 检查是否存在里程计信息。
         if args.sequence in odometry_sequences[:11]:
             print("Odometry dataset sequence {} has ground truth information (poses).".format(args.sequence))
             kitti.load_poses()
-
+        
         try:
+            # IMU
             util = pykitti.utils.read_calib_file(os.path.join(args.dir,'sequences',args.sequence, 'calib.txt'))
             current_epoch = (datetime.utcnow() - datetime(1970, 1, 1)).total_seconds()
             # Export
@@ -463,10 +490,11 @@ if __name__ == "__main__":
                 used_cameras = cameras[:2]
             elif args.kitti_type.find("color") != -1:
                 used_cameras = cameras[-2:]
-
+            # 动态tf
             save_dynamic_tf(bag, kitti, args.kitti_type, initial_time=current_epoch)
-            for camera in used_cameras:
-                save_camera_data(bag, args.kitti_type, kitti, util, bridge, camera=camera[0], camera_frame_id=camera[1], topic=camera[2], initial_time=current_epoch)
+            # 
+            # for camera in used_cameras:
+            #     save_camera_data(bag, args.kitti_type, kitti, util, bridge, camera=camera[0], camera_frame_id=camera[1], topic=camera[2], initial_time=current_epoch)
 
         finally:
             print("## OVERVIEW ##")

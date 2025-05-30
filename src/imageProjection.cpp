@@ -270,6 +270,7 @@ public:
             // Remove Nan points                                （为跑kitti数据集改，本没有下面两行）
             // indices 是一个索引向量，用于存储保留的点的索引
             // std::vector<int> indices;
+            // 通过去除无效点获取索引值，（原始点云，目标点云，索引值）
             // pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
             // 跑KITTI数据集/end
         }
@@ -628,15 +629,15 @@ public:
     {
         int cloudSize = laserCloudIn->points.size();
         // 跑KITTI数据集
-        // bool halfPassed = false;
-        // cloudInfo.startOrientation = -atan2(laserCloudIn->points[0].y, laserCloudIn->points[0].x);
-        // cloudInfo.endOrientation   = -atan2(laserCloudIn->points[laserCloudIn->points.size() - 1].y,
-        //                                              laserCloudIn->points[laserCloudIn->points.size() - 1].x) + 2 * M_PI;
-        // if (cloudInfo.endOrientation - cloudInfo.startOrientation > 3 * M_PI) {
-        //     cloudInfo.endOrientation -= 2 * M_PI;
-        // } else if (cloudInfo.endOrientation - cloudInfo.startOrientation < M_PI)
-        //     cloudInfo.endOrientation += 2 * M_PI;
-        // cloudInfo.orientationDiff = cloudInfo.endOrientation - cloudInfo.startOrientation;
+        bool halfPassed = false;
+        cloudInfo.startOrientation = -atan2(laserCloudIn->points[0].y, laserCloudIn->points[0].x);
+        cloudInfo.endOrientation   = -atan2(laserCloudIn->points[laserCloudIn->points.size() - 1].y,
+                                                     laserCloudIn->points[laserCloudIn->points.size() - 1].x) + 2 * M_PI;
+        if (cloudInfo.endOrientation - cloudInfo.startOrientation > 3 * M_PI) {
+            cloudInfo.endOrientation -= 2 * M_PI;
+        } else if (cloudInfo.endOrientation - cloudInfo.startOrientation < M_PI)
+            cloudInfo.endOrientation += 2 * M_PI;
+        cloudInfo.orientationDiff = cloudInfo.endOrientation - cloudInfo.startOrientation;
         // 跑KITTI数据集/end
 
         // range image projection
