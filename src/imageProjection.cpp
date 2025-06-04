@@ -215,26 +215,33 @@ public:
     // void cloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     void cloudHandler(const sensor_msgs::PointCloud2::ConstPtr& laserCloudMsg)
     {
+        // printf("cloudHandler\n");
         // 缓存点云数据
         if (!cachePointCloud(laserCloudMsg))
             return;
 
         // 点云数据预处理
         // 调用 deskewInfo 函数进行信息校正（如时间同步、去畸变等）。
-        if (!deskewInfo())
-            return;
+        // if (!deskewInfo())
+            // return;
 
+        // printf("projectPointCloud init\n");
         // 点云数据投影
         // 调用 projectPointCloud 函数进行点云的投影，可能是将点云数据从激光雷达坐标系转换到其他坐标系，或者进行某种映射处理。
         projectPointCloud();
+        // printf("projectPointCloud success\n");
 
+        printf("cloudExtraction init\n");
         // 点云数据提取
         // 调用 cloudExtraction 函数来提取点云中的特定信息或对象，例如地面、障碍物或其他感兴趣的部分。
         cloudExtraction();
+        printf("cloudExtraction success\n");
 
+        printf("publishClouds init\n");
         // 发布处理后的点云数据
         // 调用 publishClouds 函数将处理后的点云数据发布到ROS网络，以供其他节点使用。
         publishClouds();
+        printf("publishClouds success\n");
 
         // 重置参数
         // 为了准备下一轮处理，确保参数状态清洁。
@@ -331,6 +338,7 @@ public:
                 if (currentCloudMsg.fields[i].name == "ring")
                 {
                     ringFlag = 1;
+                    printf("have ring\r\n");
                     break;
                 }
             }
@@ -361,12 +369,14 @@ public:
                 ROS_WARN("Point cloud timestamp not available, deskew function disabled, system will drift significantly!");
         }
 
+        // printf("PointCloud success\r\n");
         return true;
     }
 
     // 检查并准备去畸变处理所需的信息
     bool deskewInfo()
     {
+        // printf("deskewInfo init\n");
         // 确保对IMU数据的访问是线程安全的
         std::lock_guard<std::mutex> lock1(imuLock);
         // 确保对里程计数据的访问是线程安全的
@@ -377,12 +387,18 @@ public:
         // 要求IMU开始于扫描之前，结束于扫描之后
         if (imuQueue.empty() || imuQueue.front().header.stamp.toSec() > timeScanCur || imuQueue.back().header.stamp.toSec() < timeScanEnd)
         {
+            // printf("deskewInfo error\n");
+            printf("imuQueue.empty() = %d\r\n", imuQueue.empty());
+            printf("imuQueue.front().header.stamp.toSec() = %f\r\n", imuQueue.front().header.stamp.toSec());
+            printf("timeScanCur = %f\r\n", timeScanCur);
+            printf("imuQueue.back().header.stamp.toSec() = %f\r\n", imuQueue.back().header.stamp.toSec());
             ROS_DEBUG("Waiting for IMU data ...");
             return false;
         }
-
+        // printf("deskewInfo init2\n");
         // 准备imu去畸变
         imuDeskewInfo();
+        // printf("deskewInfo init3\n");
         // 准备odom去畸变
         odomDeskewInfo();
 
@@ -655,6 +671,7 @@ public:
 
             // 跑KITTI数据集
             int rowIdn = laserCloudIn->points[i].ring;
+            // printf("rowIdn: %d\r\n", rowIdn);
 
             // 跑KITTI数据集
             // int rowIdn = -1;
@@ -732,6 +749,7 @@ public:
             int index = columnIdn + rowIdn * Horizon_SCAN;
             fullCloud->points[index] = thisPoint;
         }
+        // printf("projectPointCloud success\r\n");
     }
 
     void cloudExtraction()
@@ -758,6 +776,7 @@ public:
             }
             cloudInfo.endRingIndex[i] = count -1 - 5;
         }
+        // printf("cloudExtraction success\r\n");
     }
     
     void publishClouds()
