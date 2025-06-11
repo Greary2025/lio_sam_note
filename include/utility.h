@@ -162,7 +162,7 @@ public:
 
     ParamServer()
     {
-        nh.param<std::string>("/robot_id", robot_id, "roboat");
+        nh.param<std::string>("/robot_id", robot_id, "robota");
 
         nh.param<std::string>("lio_sam/pointCloudTopic", pointCloudTopic, "points_raw");
         nh.param<std::string>("lio_sam/imuTopic", imuTopic, "imu_correct");

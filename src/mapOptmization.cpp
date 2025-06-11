@@ -140,8 +140,8 @@ public:
     int laserCloudCornerLastDSNum = 0;
     int laserCloudSurfLastDSNum = 0;
     // 跑KITTI数据集
-    // double timeStart ;
-    // // int flag_tum=1;
+    double timeStart ;
+    // int flag_tum=1;
     // 跑KITTI数据集/end
 
     bool aLoopIsClosed = false;

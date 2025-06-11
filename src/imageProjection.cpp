@@ -101,12 +101,15 @@ public:
         // this 指针是 ImageProjection 类的实例指针，表示回调函数 imuHandler 属于该类的成员函数，ROS 会在回调时自动传递该类的实例指针。
         // ros::TransportHints() 是用来设置传输参数的对象。tcpNoDelay() 表示启用 TCP 的“无延迟”模式（Nagle 算法禁用），这可以减少网络延迟，特别是对于实时系统中的 IMU 数据传输。
         subImu        = nh.subscribe<sensor_msgs::Imu>(imuTopic, 2000, &ImageProjection::imuHandler, this, ros::TransportHints().tcpNoDelay());
+        // std::cout << "subImu:" << imuTopic << std::endl;
         // 这是一个字符串，表示订阅的里程计数据话题。odomTopic 是一个变量（可能是 odomTopic = "odom"），然后 _incremental 被附加到话题名上，形成最终的订阅话题名。
         // 例如，如果 odomTopic 是 "odom"，最终订阅的话题将是 "odom_incremental"。
         // 这种命名方式可能是为了区分增量里程计数据与其他类型的里程计数据。
         // 这是回调函数指针，当订阅到新的 Odometry 消息时，odometryHandler 函数将被调用来处理这些数据。
         // odometryHandler 是 ImageProjection 类的成员函数，它负责处理从 odomTopic+"_incremental" 话题接收到的增量里程计数据。
-        subOdom       = nh.subscribe<nav_msgs::Odometry>(odomTopic+"_incremental", 2000, &ImageProjection::odometryHandler, this, ros::TransportHints().tcpNoDelay());
+        // subOdom       = nh.subscribe<nav_msgs::Odometry>(odomTopic+"_incremental", 2000, &ImageProjection::odometryHandler, this, ros::TransportHints().tcpNoDelay());
+        // 设置为去除IMU紧耦合的回环
+        subOdom       = nh.subscribe<nav_msgs::Odometry>("lio_sam/mapping/odometry_incremental", 5,    &ImageProjection::odometryHandler, this, ros::TransportHints().tcpNoDelay());
         // nh.subscribe<sensor_msgs::PointCloud2>：使用 nh（ros::NodeHandle 对象）创建一个订阅者，
         // 订阅的消息类型是 sensor_msgs::PointCloud2，这是 ROS 中用于表示点云数据的标准消息类型。
         // pointCloudTopic：这是订阅的主题名称，类型为 std::string，需要在前面定义。比如 pointCloudTopic 可以是 "/laser_cloud" 或其他包含点云数据的主题。
@@ -184,6 +187,8 @@ public:
 
         std::lock_guard<std::mutex> lock1(imuLock);
         imuQueue.push_back(thisImu);
+        // printf("imuHandler\n");
+        // cout << "imuQueue.size(): " << imuQueue.size() << endl;
 
         // debug IMU data(测试IMU数据）
         // cout << std::setprecision(6);
@@ -222,8 +227,8 @@ public:
 
         // 点云数据预处理
         // 调用 deskewInfo 函数进行信息校正（如时间同步、去畸变等）。
-        // if (!deskewInfo())
-            // return;
+        if (!deskewInfo())
+            return;
 
         // printf("projectPointCloud init\n");
         // 点云数据投影
@@ -231,17 +236,17 @@ public:
         projectPointCloud();
         // printf("projectPointCloud success\n");
 
-        printf("cloudExtraction init\n");
+        // printf("cloudExtraction init\n");
         // 点云数据提取
         // 调用 cloudExtraction 函数来提取点云中的特定信息或对象，例如地面、障碍物或其他感兴趣的部分。
         cloudExtraction();
-        printf("cloudExtraction success\n");
+        // printf("cloudExtraction success\n");
 
-        printf("publishClouds init\n");
+        // printf("publishClouds init\n");
         // 发布处理后的点云数据
         // 调用 publishClouds 函数将处理后的点云数据发布到ROS网络，以供其他节点使用。
         publishClouds();
-        printf("publishClouds success\n");
+        // printf("publishClouds success\n");
 
         // 重置参数
         // 为了准备下一轮处理，确保参数状态清洁。
@@ -276,9 +281,9 @@ public:
             // 跑KITTI数据集
             // Remove Nan points                                （为跑kitti数据集改，本没有下面两行）
             // indices 是一个索引向量，用于存储保留的点的索引
-            // std::vector<int> indices;
+            std::vector<int> indices;
             // 通过去除无效点获取索引值，（原始点云，目标点云，索引值）
-            // pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
+            pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
             // 跑KITTI数据集/end
         }
         else if (sensor == SensorType::OUSTER)
@@ -322,8 +327,8 @@ public:
 
         // 跑KITTI数据集
 
-        // if (!has_ring)
-        //     return true;
+        if (!has_ring)
+            return true;
         // 跑KITTI数据集/end
 
         // check ring channel
@@ -385,19 +390,24 @@ public:
         // make sure IMU data available for the scan
         // 如果IMU数据队列为空，或者最早的IMU数据时间戳晚于扫描开始时间，或者最晚的IMU数据时间戳早于扫描结束时间，等待IMU数据
         // 要求IMU开始于扫描之前，结束于扫描之后
-        if (imuQueue.empty() || imuQueue.front().header.stamp.toSec() > timeScanCur || imuQueue.back().header.stamp.toSec() < timeScanEnd)
+        if (imuQueue.empty() 
+                    || imuQueue.front().header.stamp.toSec() > timeScanCur 
+                    || imuQueue.back().header.stamp.toSec() < timeScanEnd)
         {
             // printf("deskewInfo error\n");
-            printf("imuQueue.empty() = %d\r\n", imuQueue.empty());
-            printf("imuQueue.front().header.stamp.toSec() = %f\r\n", imuQueue.front().header.stamp.toSec());
-            printf("timeScanCur = %f\r\n", timeScanCur);
-            printf("imuQueue.back().header.stamp.toSec() = %f\r\n", imuQueue.back().header.stamp.toSec());
+            // printf("imuQueue.empty() = %d\r\n", imuQueue.empty());
+            // printf("imuQueue.front().header.stamp.toSec() = %f\r\n", imuQueue.front().header.stamp.toSec());
+            // printf("timeScanCur = %f\r\n", timeScanCur);
+            // printf("imuQueue.back().header.stamp.toSec() = %f\r\n", imuQueue.back().header.stamp.toSec());
+            // cout << "imuQueue.back(): " << imuQueue.back() << endl;
+            // printf("timeScanEnd = %f\r\n", timeScanEnd);
             ROS_DEBUG("Waiting for IMU data ...");
             return false;
         }
         // printf("deskewInfo init2\n");
         // 准备imu去畸变
         imuDeskewInfo();
+        // cout << "cloudInfo.imuAvailable: " << cloudInfo.imuAvailable << endl;
         // printf("deskewInfo init3\n");
         // 准备odom去畸变
         odomDeskewInfo();
@@ -670,19 +680,19 @@ public:
                 continue;
 
             // 跑KITTI数据集
-            int rowIdn = laserCloudIn->points[i].ring;
+            // int rowIdn = laserCloudIn->points[i].ring;
             // printf("rowIdn: %d\r\n", rowIdn);
 
             // 跑KITTI数据集
-            // int rowIdn = -1;
-            // if (has_ring == true){
-            //     rowIdn = laserCloudIn->points[i].ring;
-            // }
-            // else{
-            //     float verticalAngle, horizonAngle;
-            //     verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y)) * 180 / M_PI;
-            //     rowIdn = (verticalAngle + ang_bottom) / ang_res_y;
-            // }
+            int rowIdn = -1;
+            if (has_ring == true){
+                rowIdn = laserCloudIn->points[i].ring;
+            }
+            else{
+                float verticalAngle, horizonAngle;
+                verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y)) * 180 / M_PI;
+                rowIdn = (verticalAngle + ang_bottom) / ang_res_y;
+            }
             // 跑KITTI数据集/end
 
             if (rowIdn < 0 || rowIdn >= N_SCAN)
@@ -716,32 +726,32 @@ public:
             thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
             // 跑KITTI数据集
 
-            // if (has_ring == true)
-            //     thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
-            // else {
-            //         float ori = -atan2(thisPoint.y, thisPoint.x);
-            //         if (!halfPassed) {
-            //             if (ori < cloudInfo.startOrientation - M_PI / 2) {
-            //                 ori += 2 * M_PI;
-            //             } else if (ori > cloudInfo.startOrientation + M_PI * 3 / 2) {
-            //                 ori -= 2 * M_PI;
-            //             }
-            //             if (ori - cloudInfo.startOrientation > M_PI) {
-            //                 halfPassed = true;
-            //             }
-            //         } else {
-            //             ori += 2 * M_PI;
-            //             if (ori < cloudInfo.endOrientation - M_PI * 3 / 2) {
-            //                 ori += 2 * M_PI;
-            //             } else if (ori > cloudInfo.endOrientation + M_PI / 2) {
-            //                 ori -= 2 * M_PI;
-            //             }
-            //         }
-            //         float relTime = (ori - cloudInfo.startOrientation) / cloudInfo.orientationDiff;
-            //         // 激光雷达10Hz，周期0.1
-            //         laserCloudIn->points[i].time = 0.1 * relTime;
-            //         thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
-            // }
+            if (has_ring == true)
+                thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            else {
+                    float ori = -atan2(thisPoint.y, thisPoint.x);
+                    if (!halfPassed) {
+                        if (ori < cloudInfo.startOrientation - M_PI / 2) {
+                            ori += 2 * M_PI;
+                        } else if (ori > cloudInfo.startOrientation + M_PI * 3 / 2) {
+                            ori -= 2 * M_PI;
+                        }
+                        if (ori - cloudInfo.startOrientation > M_PI) {
+                            halfPassed = true;
+                        }
+                    } else {
+                        ori += 2 * M_PI;
+                        if (ori < cloudInfo.endOrientation - M_PI * 3 / 2) {
+                            ori += 2 * M_PI;
+                        } else if (ori > cloudInfo.endOrientation + M_PI / 2) {
+                            ori -= 2 * M_PI;
+                        }
+                    }
+                    float relTime = (ori - cloudInfo.startOrientation) / cloudInfo.orientationDiff;
+                    // 激光雷达10Hz，周期0.1
+                    laserCloudIn->points[i].time = 0.1 * relTime;
+                    thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
+            }
             // 跑KITTI数据集/end
 
             rangeMat.at<float>(rowIdn, columnIdn) = range;

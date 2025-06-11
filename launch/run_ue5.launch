@@ -1,30 +1,36 @@
 <launch>
 
     <arg name="project" default="lio_sam"/>
-    <param name="/use_sim_time" value="true" />
+    <param name="use_sim_time" value="true" />
     
     <!-- Parameters -->
     <rosparam file="$(find lio_sam)/config/params_ue5.yaml" command="load" />
 
     <!--- LOAM -->
-    <include file="$(find lio_sam)/launch/include/module_loam.launch" />
+    <!-- <include file="$(find lio_sam)/launch/include/module_loam.launch" /> -->
+    <!-- <arg name="project" default="lio_sam"/> -->
+    
+    <node pkg="$(arg project)" type="$(arg project)_imuPreintegration"   name="$(arg project)_imuPreintegration"    output="screen" 	respawn="true"/>
+    <node pkg="$(arg project)" type="$(arg project)_imageProjection"     name="$(arg project)_imageProjection"      output="screen"     respawn="true"/>
+    <node pkg="$(arg project)" type="$(arg project)_featureExtraction"   name="$(arg project)_featureExtraction"    output="screen"     respawn="true"/>
+    <node pkg="$(arg project)" type="$(arg project)_mapOptmization"      name="$(arg project)_mapOptmization"       output="screen"     respawn="true"/>
 
-    <remap from="/xianfeng_lidar" to="/points_raw" />
-    <remap from="/xianfeng_imu" to="/imu_raw" />
-    <remap from="/xianfeng_imu" to="/imu_correct" />
+    <!-- <remap from="/xianfeng_lidar" to="/points_raw" /> -->
+    <!-- <remap from="/xianfeng_imu" to="/imu_raw" /> -->
+    <!-- <remap from="/xianfeng_imu" to="imu_correct" /> -->
 
     <!--- Robot State TF -->
     <!-- 机器人描述和机器人状态话题，就是各个传感器之间位置关系 -->
-    <include file="$(find lio_sam)/launch/include/module_robot_state_publisher.launch" />
+    <!-- <include file="$(find lio_sam)/launch/include/module_robot_state_publisher.launch" /> -->
 
     <!--- Run Navsat -->
     <!-- 就是GPS相关的话题 -->
-    <include file="$(find lio_sam)/launch/include/module_navsat.launch" />
+    <!-- <include file="$(find lio_sam)/launch/include/module_navsat.launch" /> -->
 
     <!--- Run Rviz-->
     <include file="$(find lio_sam)/launch/include/module_rviz.launch" />
 
     <!--- Run Rosbag-->
-    <include file="$(find lio_sam)/launch/include/module_rosbag.launch" />
+    <!-- <include file="$(find lio_sam)/launch/include/module_rosbag.launch" /> -->
 
 </launch>
