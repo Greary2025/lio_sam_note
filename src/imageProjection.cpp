@@ -690,7 +690,8 @@ public:
             }
             else{
                 float verticalAngle, horizonAngle;
-                verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y)) * 180 / M_PI;
+                verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x 
+                                    + thisPoint.y * thisPoint.y)) * 180 / M_PI;
                 rowIdn = (verticalAngle + ang_bottom) / ang_res_y;
             }
             // 跑KITTI数据集/end
@@ -725,7 +726,6 @@ public:
             // 跑KITTI数据集
             thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
             // 跑KITTI数据集
-
             if (has_ring == true)
                 thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
             else {

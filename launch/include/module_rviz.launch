@@ -4,5 +4,6 @@
 
     <!--- Run Rviz-->
     <node pkg="rviz" type="rviz" name="$(arg project)_rviz" args="-d $(find lio_sam)/launch/include/config/rviz.rviz" />
+    <!-- <node pkg="rviz" type="rviz" name="$(arg project)_rviz" args="-d $(find lio_sam)/launch/include/config/ue5_1_rviz.rviz" /> -->
 
 </launch>
