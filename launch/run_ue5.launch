@@ -21,7 +21,7 @@
 
     <!--- Robot State TF -->
     <!-- 机器人描述和机器人状态话题，就是各个传感器之间位置关系 -->
-    <!-- <include file="$(find lio_sam)/launch/include/module_robot_state_publisher.launch" /> -->
+    <include file="$(find lio_sam)/launch/include/module_robot_state_publisher.launch" />
 
     <!--- Run Navsat -->
     <!-- 就是GPS相关的话题 -->

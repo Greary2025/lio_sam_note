@@ -304,8 +304,8 @@ Visualization Manager:
         - Alpha: 0.30000001192092896
           Autocompute Intensity Bounds: false
           Autocompute Value Bounds:
-            Max Value: 7.4858574867248535
-            Min Value: -1.2309398651123047
+            Max Value: 1.3001337051391602
+            Min Value: -10.849607467651367
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -334,8 +334,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 36.61034393310547
-            Min Value: -2.3476977348327637
+            Max Value: 1.4379210472106934
+            Min Value: -10.895992279052734
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -369,7 +369,7 @@ Visualization Manager:
           Channel Name: intensity
           Class: rviz/PointCloud2
           Color: 255; 255; 255
-          Color Transformer: Intensity
+          Color Transformer: FlatColor
           Decay Time: 0
           Enabled: true
           Invert Rainbow: false
@@ -489,7 +489,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 338.93951416015625
+      Distance: 57.62313461303711
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -497,17 +497,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 0.4331258535385132
+        Y: -5.0900139808654785
+        Z: -5.016031742095947
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.1253981590270996
+      Pitch: 0.7147967219352722
       Target Frame: base_link
-      Yaw: 3.3316705226898193
+      Yaw: 4.246673583984375
     Saved: ~
 Window Geometry:
   Displays:
@@ -523,5 +523,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1339
-  X: 137
-  Y: 112
+  X: 73
+  Y: 48

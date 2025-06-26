@@ -44,7 +44,8 @@ lio_sam:
   # imuGyrNoise: 0.005   # 原值约0.002
   # imuAccBiasN: 0.0002  # 原值约0.0001
   # imuGyrBiasN: 0.00003 # 原值约0.00001
-  imuGravity: 9.80511
+  # imuGravity: 9.80511
+  imuGravity: 0
   imuRPYWeight: 0.01
 
   has_ring: false                              # lidar data format, if lidar driver has ring data publish, set 'ture'

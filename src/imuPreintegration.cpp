@@ -41,6 +41,7 @@ public:
 
     double lidarOdomTime = -1;              // 激光雷达里程计时间戳
     deque<nav_msgs::Odometry> imuOdomQueue; // IMU里程计消息队列
+    deque<nav_msgs::Odometry> lidarOdomQueue;
 
     // 构造函数：初始化TF变换、订阅器和发布器
     TransformFusion()
@@ -51,7 +52,14 @@ public:
             {
                 // 等待并获取激光雷达到基坐标系的静态变换
                 tfListener.waitForTransform(lidarFrame, baselinkFrame, ros::Time(0), ros::Duration(3.0));
+                // 目标坐标系（lidarFrame）← 源坐标系（baselinkFrame）
+                // ros::Time(0)表示获取最新可用的变换
+                // 结果存储在lidar2Baselink这个tf::StampedTransform对象中
                 tfListener.lookupTransform(lidarFrame, baselinkFrame, ros::Time(0), lidar2Baselink);
+                // cout << "lidar2Baselink: " << lidar2Baselink.getOrigin().x() << ", " 
+                //      << lidar2Baselink.getOrigin().y() << ", " << lidar2Baselink.getOrigin().z() << endl;
+                // cout << "lidar2Baselink: " << lidar2Baselink.getRotation().x() << ", " 
+                    //  << lidar2Baselink.getRotation().y() << ", " << lidar2Baselink.getRotation().z() << endl;
             }
             catch (tf::TransformException ex)
             {
@@ -86,7 +94,7 @@ public:
     void lidarOdometryHandler(const nav_msgs::Odometry::ConstPtr& odomMsg)
     {
         std::lock_guard<std::mutex> lock(mtx);  // 加锁保证线程安全
-
+        lidarOdomQueue.push_back(*odomMsg);  // 存储激光雷达里程计消息
         lidarOdomAffine = odom2affine(*odomMsg);  // 转换并存储激光雷达里程计仿射变换
 
         lidarOdomTime = odomMsg->header.stamp.toSec();  // 记录时间戳
@@ -131,10 +139,26 @@ public:
         laserOdometry.pose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(roll, pitch, yaw);
         pubImuOdometry.publish(laserOdometry);
 
+        // 发布最新的融合里程计消息（未进行里程计融合）
+        // nav_msgs::Odometry laserOdometry = lidarOdomQueue.back();
+        // laserOdometry.pose.pose.position.x = x;
+        // laserOdometry.pose.pose.position.y = y;
+        // laserOdometry.pose.pose.position.z = z;
+        // laserOdometry.pose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(roll, pitch, yaw);
+        // pubImuOdometry.publish(laserOdometry);
+
         // 发布odom到baselink的TF变换
         static tf::TransformBroadcaster tfOdom2BaseLink;
+        // tf::TransformBroadcaster tfOdom2BaseLink;
         tf::Transform tCur;
         tf::poseMsgToTF(laserOdometry.pose.pose, tCur);
+        // origin是位移变量，rotation是旋转四元数
+        // z轴数据有问题
+        // cout << "tCur: " << tCur.getOrigin().x() << ", " 
+        // << tCur.getOrigin().y() << ", " << tCur.getOrigin().z() 
+        // << ", " << tCur.getRotation().x() << ", " << tCur.getRotation().y() << ", " 
+        // << tCur.getRotation().z() << ", " << tCur.getRotation().w() 
+        // << endl;
         if(lidarFrame != baselinkFrame)  // 若激光雷达与基坐标系不同，转换到基坐标系
             tCur = tCur * lidar2Baselink;
         tf::StampedTransform odom_2_baselink = tf::StampedTransform(tCur, odomMsg->header.stamp, odometryFrame, baselinkFrame);
@@ -383,12 +407,21 @@ public:
             {
                 // 计算时间间隔（首次取1/500秒，否则取相邻数据时间差）
                 double dt = (lastImuT_opt < 0) ? (1.0 / 500.0) : (imuTime - lastImuT_opt);
+                // double dt = (lastImuT_opt < 0) ? (1.0 / 500.0) : (imuTime - lastImuT_opt) / 4;
                 // 预积分IMU测量值（加速度和角速度）
                 imuIntegratorOpt_->integrateMeasurement(
                         gtsam::Vector3(thisImu->linear_acceleration.x, thisImu->linear_acceleration.y, thisImu->linear_acceleration.z),
                         gtsam::Vector3(thisImu->angular_velocity.x,    thisImu->angular_velocity.y,    thisImu->angular_velocity.z), dt);
                 
                 lastImuT_opt = imuTime;  // 更新上一IMU时间戳
+                // cout << "lastImuT_opt:" << lastImuT_opt << endl;
+                // cout << "dt:" << dt << endl;
+                // cout << "thisImu:" << thisImu->linear_acceleration.x << ", "
+                //      << thisImu->linear_acceleration.y << ", "
+                //      << thisImu->linear_acceleration.z << ", "
+                //      << thisImu->angular_velocity.x << ", "
+                //      << thisImu->angular_velocity.y << ", "
+                //      << thisImu->angular_velocity.z << endl;
                 imuQueOpt.pop_front();   // 弹出已处理的IMU数据
             }
             else
@@ -452,6 +485,7 @@ public:
                 sensor_msgs::Imu *thisImu = &imuQueImu[i];
                 double imuTime = ROS_TIME(thisImu);
                 double dt = (lastImuQT < 0) ? (1.0 / 500.0) :(imuTime - lastImuQT);
+                // double dt = (lastImuQT < 0) ? (1.0 / 500.0) :(imuTime - lastImuQT) / 4;
 
                 imuIntegratorImu_->integrateMeasurement(gtsam::Vector3(thisImu->linear_acceleration.x, thisImu->linear_acceleration.y, thisImu->linear_acceleration.z),
                                                         gtsam::Vector3(thisImu->angular_velocity.x,    thisImu->angular_velocity.y,    thisImu->angular_velocity.z), dt);
@@ -499,7 +533,9 @@ public:
             return;
 
         double imuTime = ROS_TIME(&thisImu);
+
         double dt = (lastImuT_imu < 0) ? (1.0 / 500.0) : (imuTime - lastImuT_imu);
+        // double dt = (lastImuT_imu < 0) ? (1.0 / 500.0) : (imuTime - lastImuT_imu) / 4;
         lastImuT_imu = imuTime;
 
         // integrate this single imu message
