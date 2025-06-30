@@ -49,8 +49,8 @@ lio_sam:
   imuRPYWeight: 0.01
 
   has_ring: false                              # lidar data format, if lidar driver has ring data publish, set 'ture'
-  ang_bottom: 15.0                             # if 'has_ring' is false, change it
-  ang_res_y: 1.0                            # if 'has_ring' is false, change it
+  ang_bottom: -15.0                             # if 'has_ring' is false, change it
+  ang_res_y: 2.0                            # if 'has_ring' is false, change it
 
   # Extrinsics: T_lb (lidar -> imu)
   extrinsicTrans: [0.0, 0.0, 0.0]
