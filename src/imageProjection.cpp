@@ -685,6 +685,7 @@ public:
 
             // 跑KITTI数据集
             int rowIdn = -1;
+            // static int rowLast = -1;
             if (has_ring == true){
                 rowIdn = laserCloudIn->points[i].ring;
             }
@@ -693,6 +694,12 @@ public:
                 verticalAngle = atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x 
                                     + thisPoint.y * thisPoint.y)) * 180 / M_PI;
                 rowIdn = (verticalAngle + ang_bottom) / ang_res_y;
+                // 检查维数是否正确
+                // if (rowIdn != rowLast)
+                // {
+                //     rowLast = rowIdn;
+                //     cout << "rowIdn: " << rowIdn << endl;
+                // }
             }
             // 跑KITTI数据集/end
 
