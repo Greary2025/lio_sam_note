@@ -2,7 +2,7 @@
 
     <arg name="project" default="lio_sam"/>
 
-    <arg name="liosam_bag" value="/mnt/c/Users/Greary/Documents/rosbag/lidar_1_0629.bag"/>
+    <arg name="liosam_bag" value="/mnt/c/Users/Greary/Documents/rosbag/single3/lidar_1_0630.bag"/>
 
     <!-- -r 1：这个参数用于控制播放速率。-r 后面的值是播放的速率倍数，1 表示按照原始速度播放。如果设置为 0.5 则是原速的一半，2 则是原速的两倍。 -->
     <!-- -q：静音模式，指定这个参数后会让 rosbag 在播放过程中不输出任何信息到屏幕，保持界面干净。 -->

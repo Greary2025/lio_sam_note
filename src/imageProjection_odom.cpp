@@ -730,7 +730,7 @@ public:
             if (rangeMat.at<float>(rowIdn, columnIdn) != FLT_MAX)
                 continue;
 
-            // 跑KITTI数据集(可注释)
+            // 跑KITTI数据集
             thisPoint = deskewPoint(&thisPoint, laserCloudIn->points[i].time);
             // 跑KITTI数据集
             if (has_ring == true)

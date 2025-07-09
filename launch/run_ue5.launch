@@ -37,7 +37,7 @@
     <!-- 轨迹保存节点 -->
     <node pkg="$(arg project)" type="path_trajectory_saver" name="path_trajectory_saver" output="screen">
     <!-- 可选参数：自定义输出目录（默认~/liosam_trajectory） -->
-    <param name="output_dir" value="/mnt/c/Users/Greary/Documents/rosbag/Examdata/lidar_1_evo/liosam" />
+    <param name="output_dir" value="/mnt/c/Users/Greary/Documents/rosbag/Examdata/single_evo/liosam" />
     
     <!-- 可选参数：自定义话题名称（默认/lio_sam/mapping/path和/lio_sam/imu/path） -->
     <param name="mapping_path_topic" value="/lio_sam/mapping/path" />

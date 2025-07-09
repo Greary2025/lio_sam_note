@@ -173,7 +173,7 @@ public:
         // add by sx
         nh.param<bool>("lio_sam/has_ring", has_ring, true);
         nh.param<float>("lio_sam/ang_bottom", ang_bottom, 15.0);
-        nh.param<float>("lio_sam/ang_res_y", ang_res_y, 1.0);
+        nh.param<float>("lio_sam/ang_res_y", ang_res_y, 2.0);
         // 跑KITTI数据集/end
 
         nh.param<std::string>("lio_sam/lidarFrame", lidarFrame, "base_link");
